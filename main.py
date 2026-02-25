@@ -114,8 +114,37 @@ async def automate_window(browser, code, base_name, index, headless=True):
                     bubbles: true
                 }}));
             }};
-            const intervalId = setInterval(pressKey, 50);
-            window.stopEmulation = () => clearInterval(intervalId);
+            
+            // 1. Fallback ultra-rapide (1ms au lieu de 50ms)
+            const intervalId = setInterval(pressKey, 1);
+            
+            // 2. MutationObserver pour réagir instantanément à l'apparition des questions (0ms de latence structurelle)
+            const observer = new MutationObserver(() => {{
+                pressKey();
+            }});
+            
+            // On observe tous les changements sur la page (ajout de boutons, changement d'écrans)
+            if (document.body) {{
+                observer.observe(document.body, {{
+                    childList: true,
+                    subtree: true,
+                    attributes: true
+                }});
+            }} else {{
+                // Cas d'edge-case (body pas encore chargé) on attend le DOM
+                document.addEventListener('DOMContentLoaded', () => {{
+                    observer.observe(document.body, {{
+                        childList: true,
+                        subtree: true,
+                        attributes: true
+                    }});
+                }});
+            }}
+            
+            window.stopEmulation = () => {{
+                clearInterval(intervalId);
+                observer.disconnect();
+            }};
         }})();
         """
         await page.evaluate(spam_script)
