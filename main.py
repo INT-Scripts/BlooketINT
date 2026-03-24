@@ -129,14 +129,42 @@ async def automate_window(browser, code, base_name, index, headless=True):
         await page.keyboard.press("Enter")
         
         log_bot(index, "Entering Nickname")
-        nickname_input = page.locator('input[placeholder="Nickname"], input[type="text"]:visible').first
-        try:
-            await nickname_input.wait_for(state="visible", timeout=15000)
-        except:
-            submit_button = page.locator('button[aria-label="Submit"], button.FormSubmitButton_submitButton__MK2LJ').first
+        nickname_input = page.locator('input[placeholder="Nickname"], input[name="nickname"], input[class*="nameInput"], input[class*="name"], input[placeholder*="ickname"], input[type="text"]:visible').first
+        
+        # We will loop and check for presence of the input OR an error message
+        nickname_found = False
+        for attempt in range(25): # Loop for up to 12.5 seconds
+            if await nickname_input.is_visible():
+                nickname_found = True
+                break
+            
+            error_msg = page.locator('div[class*="error"], div[class*="Error"], div[class*="styles__error"], .error_error__z8xuC').first
+            if await error_msg.is_visible() and await error_msg.text_content():
+                text = await error_msg.text_content()
+                raise Exception(f"Join Error: {text}")
+                
+            await asyncio.sleep(0.5)
+            
+        if not nickname_found:
+            # Fallback to click submit if enter didn't work and try waiting a bit more
+            submit_button = page.locator('button[aria-label="Submit"], button[class*="submitButton"], button[class*="SubmitButton"]').first
             if await submit_button.is_visible():
                 await submit_button.click()
-            await nickname_input.wait_for(state="visible", timeout=10000)
+                
+            for attempt in range(20): # Loop for up to 10 seconds
+                if await nickname_input.is_visible():
+                    nickname_found = True
+                    break
+                
+                error_msg = page.locator('div[class*="error"], div[class*="Error"], div[class*="styles__error"], .error_error__z8xuC').first
+                if await error_msg.is_visible() and await error_msg.text_content():
+                    text = await error_msg.text_content()
+                    raise Exception(f"Join Error: {text}")
+                    
+                await asyncio.sleep(0.5)
+                
+        if not nickname_found:
+            raise Exception("Timeout waiting for nickname input. Game ID might be invalid or page structure changed.")
             
         await nickname_input.fill(unique_name)
         await page.keyboard.press("Enter")
@@ -213,7 +241,7 @@ async def automate_window(browser, code, base_name, index, headless=True):
         if headless:
             path = f"error_window_{index}.png"
             await page.screenshot(path=path)
-        raise e
+        # We don't re-raise the exception so it doesn't crash the entire swarm
 
 def generate_table() -> Table:
     table = Table(box=box.ROUNDED, expand=True, title="[bold blue]🚀 Blooket Bot Swarm Dashboard[/bold blue]")
